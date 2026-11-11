@@ -64,9 +64,7 @@ GLuint crearPrograma(const char* rutaVert, const char* rutaFrag)
     return programa;
 }
 
-// =====================================================================
-// CAMARA (mouse + teclado)
-// =====================================================================
+
 glm::vec3 objetivo(0.0f, 0.0f, 0.0f); // punto al que mira la camara (se mueve con WASD)
 float yaw = 0.0f, pitch = 0.3f, distancia = 8.0f;
 double ultimoX = 0.0, ultimoY = 0.0;
@@ -96,8 +94,7 @@ void mouseRueda(GLFWwindow* w, double dx, double dy)
     distancia = glm::clamp(distancia - (float)dy * 0.3f, 0.5f, 50.0f);
 }
 
-// W/S o flecha arriba/abajo = adelante/atras | A/D = izquierda/derecha
-// Flechas izq/der = girar camara | Q/E = girar a Mario
+
 void procesarTeclado(GLFWwindow* w, float dt)
 {
     float vel = 4.0f * dt;
