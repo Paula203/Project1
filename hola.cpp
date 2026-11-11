@@ -26,9 +26,7 @@
 #define TINYGLTF_NO_STB_IMAGE_WRITE
 #include "tiny_gltf.h"
 
-// =====================================================================
-// SHADERS: se leen desde archivos .vert / .frag
-// =====================================================================
+
 GLuint compilarShader(GLenum tipo, const char* ruta)
 {
     std::ifstream archivo(ruta);
