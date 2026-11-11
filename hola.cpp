@@ -115,9 +115,6 @@ void procesarTeclado(GLFWwindow* w, float dt)
     if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) giroExtra -= 2.0f * dt;
 }
 
-// =====================================================================
-// CURVA DE BEZIER CUBICA: B(t) = (1-t)^3 P0 + 3(1-t)^2 t P1 + 3(1-t) t^2 P2 + t^3 P3
-// =====================================================================
 glm::vec3 P[4] = {
     glm::vec3(-2.5f, -1.0f,  0.0f),
     glm::vec3(-1.0f, -1.0f,  3.0f),
