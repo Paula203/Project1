@@ -1,3 +1,4 @@
+// Librerias estandar de C++: consola, leer archivos, texto, listas y utilidades
 #define NOMINMAX
 #include <iostream>
 #include <fstream>
@@ -6,40 +7,49 @@
 #include <string>
 #include <algorithm>
 
+// GLAD: carga las funciones de OpenG
 #include <glad/glad.h>
+//crea la ventana y maneja el mouse y teclado
 #include <GLFW/glfw3.h>
 
+//matematicas para graficos 3D: matrices, vectores, quaterniones
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp> // translate, rotate, scale, perspective
+#include <glm/gtc/quaternion.hpp> // rotaciones con quaterniones
+#include <glm/gtc/type_ptr.hpp>// convierte una matriz a puntero (para OpenGL)
 
+//clases del tutorial, como sacar los shaders de archivos, VBO, VAO, EBO, etc
 #include "VBO.h"
 #include "VAO.h"
 #include "EBO.h"
 #include "ShaderClass.h"
-#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION //lee las imagenes (jpg, png, etc) y las convierte a un array de bytes
 #include "stb_image.h"
 
+//tinygltf: lee archivos.gltf / .glb.Estos #define le dicen que use el
 #define TINYGLTF_IMPLEMENTATION
 #define TINYGLTF_NO_INCLUDE_STB_IMAGE
 #define TINYGLTF_NO_STB_IMAGE_WRITE
 #include "tiny_gltf.h"
 
-
+//lee un archivo de shader lo compila y devuelve el ID del shader
+//dice si es vertex o fragment shader con el parametro "tipo" (GL_VERTEX_SHADER o GL_FRAGMENT_SHADER)
 GLuint compilarShader(GLenum tipo, const char* ruta)
 {
+	//abre el archivo, si no existe imprime un mensaje de error
     std::ifstream archivo(ruta);
     if (!archivo) std::cout << "No se pudo abrir: " << ruta << std::endl;
-    std::stringstream ss;
+	std::stringstream ss; //lee todo el contenido del archivo y lo pone en un string
     ss << archivo.rdbuf();
     std::string src = ss.str();
-    const char* codigo = src.c_str();
+    const char* codigo = src.c_str(); //opengl necesita el contexto en const char*
 
+	//crea el shader , le pasa el codigo y lo compila
     GLuint s = glCreateShader(tipo);
     glShaderSource(s, 1, &codigo, NULL);
     glCompileShader(s);
 
+	//pregunta si compilo bien, si no imprime el log de error
     int ok;
     glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
     if (!ok)
@@ -50,7 +60,7 @@ GLuint compilarShader(GLenum tipo, const char* ruta)
     }
     return s;
 }
-
+//une el vertex y fragment shader en un programa de OpenGL y devuelve el ID del programa, listos para usar
 GLuint crearPrograma(const char* rutaVert, const char* rutaFrag)
 {
     GLuint vs = compilarShader(GL_VERTEX_SHADER, rutaVert);
@@ -64,13 +74,14 @@ GLuint crearPrograma(const char* rutaVert, const char* rutaFrag)
     return programa;
 }
 
-
+//camara
 glm::vec3 objetivo(0.0f, 0.0f, 0.0f); // punto al que mira la camara (se mueve con WASD)
-float yaw = 0.0f, pitch = 0.3f, distancia = 8.0f;
+float yaw = 0.0f, pitch = 0.3f, distancia = 8.0f; //angulo horizontal, vertical y distancia de la camara respecto al objetivo
 double ultimoX = 0.0, ultimoY = 0.0;
 bool arrastrando = false;
 float giroExtra = 0.0f; // giro adicional de Mario con Q / E
 
+//se llama al presionar el boton del mouse, si es click izquierdo activa el arrastre y guarda la posicion del mouse
 void mouseBoton(GLFWwindow* w, int boton, int accion, int mods)
 {
     if (boton == GLFW_MOUSE_BUTTON_LEFT)
@@ -79,7 +90,8 @@ void mouseBoton(GLFWwindow* w, int boton, int accion, int mods)
         glfwGetCursorPos(w, &ultimoX, &ultimoY);
     }
 }
-
+//mouse
+//se llama cada vez que el mouse se mueve, si esta arrastrando cambia el yaw y pitch de la camara
 void mouseMovimiento(GLFWwindow* w, double x, double y)
 {
     if (!arrastrando) return;
@@ -88,52 +100,56 @@ void mouseMovimiento(GLFWwindow* w, double x, double y)
     ultimoX = x;
     ultimoY = y;
 }
-
+//se llama al mover la rueda del mouse, cambia la distancia de la camara respecto al objetivo
 void mouseRueda(GLFWwindow* w, double dx, double dy)
 {
     distancia = glm::clamp(distancia - (float)dy * 0.3f, 0.5f, 50.0f);
 }
 
-
+//teclado traslacion de objetivo y giro extra de Mario
 void procesarTeclado(GLFWwindow* w, float dt)
 {
     float vel = 4.0f * dt;
     glm::vec3 adelante(-sin(yaw), 0.0f, -cos(yaw)); // hacia donde mira la camara (sobre el piso)
     glm::vec3 derecha(cos(yaw), 0.0f, -sin(yaw));
 
+	//mover el punto objeto = trasladar la camara con WASD o flechas
     if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS || glfwGetKey(w, GLFW_KEY_UP) == GLFW_PRESS)
         objetivo += adelante * vel;
     if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS || glfwGetKey(w, GLFW_KEY_DOWN) == GLFW_PRESS)
         objetivo -= adelante * vel;
     if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) objetivo += derecha * vel;
     if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) objetivo -= derecha * vel;
-
+	//girar la camara con las flechas izquierda/derecha
     if (glfwGetKey(w, GLFW_KEY_LEFT) == GLFW_PRESS)  yaw += 1.5f * dt;
     if (glfwGetKey(w, GLFW_KEY_RIGHT) == GLFW_PRESS) yaw -= 1.5f * dt;
-
+	//girar Mario con Q/E
     if (glfwGetKey(w, GLFW_KEY_Q) == GLFW_PRESS) giroExtra += 2.0f * dt;
     if (glfwGetKey(w, GLFW_KEY_E) == GLFW_PRESS) giroExtra -= 2.0f * dt;
 }
 
+//curva de Bezier cubica: 4 puntos de control y duracion del recorrido
 glm::vec3 P[4] = {
     glm::vec3(-2.5f, -1.0f,  0.0f),
     glm::vec3(-1.0f, -1.0f,  3.0f),
     glm::vec3(1.0f, -1.0f, -3.0f),
     glm::vec3(2.5f, -1.0f,  0.0f) };
-float duracionRecorrido = 8.0f;
-
+float duracionRecorrido = 8.0f; //segundos que tarda Mario en recorrer la curva de ida y vuelta
+// Devuelve el punto de la curva para un valor t entre 0 y 1
 glm::vec3 puntoBezier(float t)
 {
     float u = 1.0f - t;
     return u * u * u * P[0] + 3.0f * u * u * t * P[1] + 3.0f * u * t * t * P[2] + t * t * t * P[3];
 }
-
+// Devuelve la direccion hacia donde va la curva en t (la derivada).
+// Sirve para que Mario mire hacia donde camina.
 glm::vec3 tangenteBezier(float t) // derivada: hacia donde va la curva
 {
     float u = 1.0f - t;
     return 3.0f * u * u * (P[1] - P[0]) + 6.0f * u * t * (P[2] - P[1]) + 3.0f * t * t * (P[3] - P[2]);
 }
-
+// Sube una lista de puntos 3D a la GPU y devuelve su VAO.
+// VBO = buffer con los datos | VAO = guarda como leer esos datos
 GLuint crearVAOpuntos(const std::vector<glm::vec3>& puntos)
 {
     GLuint vao, vbo;
@@ -146,10 +162,7 @@ GLuint crearVAOpuntos(const std::vector<glm::vec3>& puntos)
     glEnableVertexAttribArray(0);
     return vao;
 }
-
-// =====================================================================
-// CARGA DE MODELOS GLTF / GLB
-// =====================================================================
+//carga de modelo glTF: cada malla tiene un VAO, una textura, un color base, un numero de indices y una transformacion
 struct Malla
 {
     GLuint VAO = 0, textura = 0;
@@ -157,7 +170,7 @@ struct Malla
     glm::mat4 transform = glm::mat4(1.0f);
     glm::vec4 color = glm::vec4(1.0f);
 };
-
+// Crea una textura de OpenGL a partir de los pixeles de una imagen
 GLuint crearTextura(const unsigned char* px, int w, int h, int comp)
 {
     GLenum f = (comp == 1) ? GL_RED : (comp == 2) ? GL_RG : (comp == 4) ? GL_RGBA : GL_RGB;
@@ -174,7 +187,9 @@ GLuint crearTextura(const unsigned char* px, int w, int h, int comp)
     return tex;
 }
 
-// Puntero a los datos de un accessor y su stride (si es 0 usa "defecto")
+// En un glTF los datos estan en buffers. Un "accessor" dice donde empiezan
+// y cada cuantos bytes esta el siguiente valor (stride).
+// Esta funcion devuelve el puntero a los datos y su stride.
 const unsigned char* datosAccessor(const tinygltf::Model& m, const tinygltf::Accessor& a,
     size_t& stride, size_t defecto)
 {
@@ -183,9 +198,11 @@ const unsigned char* datosAccessor(const tinygltf::Model& m, const tinygltf::Acc
     stride = (s > 0) ? (size_t)s : defecto;
     return m.buffers[bv.buffer].data.data() + bv.byteOffset + a.byteOffset;
 }
-
+// Calcula la matriz local de un nodo del modelo (cada nodo tiene su
+// traslacion, rotacion y escala, o una matriz ya hecha)
 glm::mat4 matrizDelNodo(const tinygltf::Node& n)
 {
+    // Caso 1: el nodo ya trae una matriz de 16 numeros
     if (n.matrix.size() == 16)
     {
         glm::mat4 m(1.0f);
@@ -194,6 +211,7 @@ glm::mat4 matrizDelNodo(const tinygltf::Node& n)
                 m[c][r] = (float)n.matrix[c * 4 + r];
         return m;
     }
+	// Caso 2: el nodo trae traslacion, rotacion y escala por separado
     glm::mat4 T(1.0f), R(1.0f), S(1.0f);
     if (n.translation.size() == 3)
         T = glm::translate(glm::mat4(1.0f), glm::vec3(n.translation[0], n.translation[1], n.translation[2]));
@@ -203,7 +221,7 @@ glm::mat4 matrizDelNodo(const tinygltf::Node& n)
         S = glm::scale(glm::mat4(1.0f), glm::vec3(n.scale[0], n.scale[1], n.scale[2]));
     return T * R * S;
 }
-
+// Convierte una parte del modelo en una Malla (VAO + VBO + EBO + textura)
 void procesarPrimitiva(const tinygltf::Model& model, const tinygltf::Primitive& prim,
     const glm::mat4& transform, std::vector<Malla>& mallas, glm::vec3& minB, glm::vec3& maxB)
 {
@@ -215,24 +233,26 @@ void procesarPrimitiva(const tinygltf::Model& model, const tinygltf::Primitive& 
     const unsigned char* pos = datosAccessor(model, accPos, sP, 12);
     const unsigned char* uv = nullptr;
     const unsigned char* nor = nullptr;
-
+    // Leer coordenadas de textura (si el modelo las trae)
     if (prim.attributes.count("TEXCOORD_0"))
     {
         const tinygltf::Accessor& a = model.accessors[prim.attributes.at("TEXCOORD_0")];
         if (a.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) uv = datosAccessor(model, a, sU, 8);
     }
+    // Leer normales (si el modelo las trae)
     if (prim.attributes.count("NORMAL"))
     {
         const tinygltf::Accessor& a = model.accessors[prim.attributes.at("NORMAL")];
         if (a.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) nor = datosAccessor(model, a, sN, 12);
     }
-
+    // Juntar todo en un solo arreglo "v": 8 floats por cada vertice
     std::vector<float> v(n * 8, 0.0f);
     for (size_t i = 0; i < n; i++)
     {
         const float* p = (const float*)(pos + i * sP);
         v[i * 8 + 0] = p[0]; v[i * 8 + 1] = p[1]; v[i * 8 + 2] = p[2];
-
+        // Se calcula la caja que contiene al modelo (minB y maxB) para
+        // poder centrarlo y escalarlo despues en el main
         glm::vec3 w = glm::vec3(transform * glm::vec4(p[0], p[1], p[2], 1.0f)); // para centrar/escalar
         minB = glm::min(minB, w);
         maxB = glm::max(maxB, w);
@@ -249,10 +269,11 @@ void procesarPrimitiva(const tinygltf::Model& model, const tinygltf::Primitive& 
         }
     }
 
-    // --- Indices (todos a unsigned int) ---
+    // Los indices dicen que vertices forman cada triangulo (de 3 en 3)
     std::vector<unsigned int> indices;
     if (prim.indices >= 0)
     {
+        // Los indices pueden venir en 1, 2 o 4 bytes; se convierten todos a unsigned int
         const tinygltf::Accessor& a = model.accessors[prim.indices];
         size_t tam = (a.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) ? 2 :
             (a.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) ? 4 : 1;
@@ -276,6 +297,7 @@ void procesarPrimitiva(const tinygltf::Model& model, const tinygltf::Primitive& 
             glm::vec3 pa(v[a * 8], v[a * 8 + 1], v[a * 8 + 2]);
             glm::vec3 pb(v[b * 8], v[b * 8 + 1], v[b * 8 + 2]);
             glm::vec3 pc(v[c * 8], v[c * 8 + 1], v[c * 8 + 2]);
+            // Producto cruz de dos lados del triangulo = vector perpendicular (la normal)
             glm::vec3 fn = glm::cross(pb - pa, pc - pa);
             for (unsigned int k : { a, b, c })
             {
@@ -290,15 +312,15 @@ void procesarPrimitiva(const tinygltf::Model& model, const tinygltf::Primitive& 
         }
     }
 
-    // --- Material: color base y textura (si no hay, textura blanca) ---
+    //Material: color base y textura (si no hay, textura blanca) 
     GLuint tex = 0;
     glm::vec4 color(1.0f);
     if (prim.material >= 0)
     {
-        const tinygltf::Material& mat = model.materials[prim.material];
+		const tinygltf::Material& mat = model.materials[prim.material]; //color base del material (no tienen textura)
         const std::vector<double>& cf = mat.pbrMetallicRoughness.baseColorFactor;
         if (cf.size() == 4) color = glm::vec4(cf[0], cf[1], cf[2], cf[3]);
-
+		//textura del material (si la tiene)
         int t = mat.pbrMetallicRoughness.baseColorTexture.index;
         if (t >= 0 && t < (int)model.textures.size())
         {
