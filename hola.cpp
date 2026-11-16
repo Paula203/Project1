@@ -334,10 +334,12 @@ void procesarPrimitiva(const tinygltf::Model& model, const tinygltf::Primitive& 
     }
     if (tex == 0)
     {
+        // Sin textura: se usa un pixel blanco para que solo se vea el color base
         unsigned char blanco[3] = { 255, 255, 255 };
         tex = crearTextura(blanco, 1, 1, 3);
     }
-
+    //Subir todo a la GPU: VAO / VBO / EBO
+    // VBO = vertices | EBO = indices | VAO = guarda como leerlos
     Malla m;
     GLuint VBO, EBO;
     glGenVertexArrays(1, &m.VAO);
@@ -348,20 +350,23 @@ void procesarPrimitiva(const tinygltf::Model& model, const tinygltf::Primitive& 
     glBufferData(GL_ARRAY_BUFFER, v.size() * sizeof(float), v.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+    // Como leer los 8 floats de cada vertice (8 * sizeof(float) = tamano de cada vertice):
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(0); // posicion 0
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(1);// posicion 1 = coordenadas de textura
     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(5 * sizeof(float)));
-    glEnableVertexAttribArray(2);
+	glEnableVertexAttribArray(2);// posicion 2 = normales
 
+    // Guardar los datos en la Malla y agregarla a la lista
     m.textura = tex;
     m.numIndices = (GLsizei)indices.size();
     m.transform = transform;
     m.color = color;
     mallas.push_back(m);
 }
-
+// Recorre los nodos del modelo (cada nodo puede tener una malla y nodos hijos).
+// La matriz global de un nodo = matriz del padre * matriz propia
 void procesarNodo(const tinygltf::Model& model, int i, const glm::mat4& padre,
     std::vector<Malla>& mallas, glm::vec3& minB, glm::vec3& maxB)
 {
@@ -372,15 +377,16 @@ void procesarNodo(const tinygltf::Model& model, int i, const glm::mat4& padre,
             procesarPrimitiva(model, prim, global, mallas, minB, maxB);
     for (int hijo : node.children)
         procesarNodo(model, hijo, global, mallas, minB, maxB);
+    // se llama a si misma para los hijos
 }
-
+// Carga un archivo.glb o.gltf y devuelve la lista de mallas
 std::vector<Malla> cargarGLTF(const char* ruta, glm::vec3& minB, glm::vec3& maxB)
 {
     std::vector<Malla> mallas;
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
     std::string err, warn, r = ruta;
-
+    // .glb es binario y .gltf es texto, se cargan de forma distinta
     bool esGLB = r.size() >= 4 && r.substr(r.size() - 4) == ".glb";
     bool ok = esGLB ? loader.LoadBinaryFromFile(&model, &err, &warn, r)
         : loader.LoadASCIIFromFile(&model, &err, &warn, r);
@@ -394,9 +400,10 @@ std::vector<Malla> cargarGLTF(const char* ruta, glm::vec3& minB, glm::vec3& maxB
         procesarNodo(model, n, rotacionInicial, mallas, minB, maxB);
     return mallas;
 }
-
+//inicia el programa, crea la ventana, shaders, carga a Mario y entra al loop principal
 int main()
 {
+	//crea la ventana y el contexto OpenGL 3.3
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -409,11 +416,11 @@ int main()
         glfwTerminate();
         return -1;
     }
-    glfwMakeContextCurrent(window);
+    glfwMakeContextCurrent(window);// activa el contexto de OpenGL de esta ventana
     gladLoadGL();
     glViewport(0, 0, 800, 800);
     glEnable(GL_DEPTH_TEST);
-
+    // Registrar las funciones del mouse para que GLFW las llame
     glfwSetMouseButtonCallback(window, mouseBoton);
     glfwSetCursorPosCallback(window, mouseMovimiento);
     glfwSetScrollCallback(window, mouseRueda);
@@ -449,12 +456,13 @@ int main()
     // Uniforms y valores fijos
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), 1.0f, 0.1f, 100.0f);
     glm::vec3 luzPos(3.0f, 3.0f, 4.0f), luzColor(1.0f);
-
+    // Valores que no cambian: se envian UNA sola vez, antes del ciclo
     glUseProgram(shaderProgram);
     glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
     glUniform3fv(glGetUniformLocation(shaderProgram, "lightPos"), 1, glm::value_ptr(luzPos));
     glUniform3fv(glGetUniformLocation(shaderProgram, "lightColor"), 1, glm::value_ptr(luzColor));
+    // Ubicaciones de los uniforms que SI cambian en cada frame
     GLint modelLoc = glGetUniformLocation(shaderProgram, "model");
     GLint viewLoc = glGetUniformLocation(shaderProgram, "view");
     GLint viewPosLoc = glGetUniformLocation(shaderProgram, "viewPos");
@@ -465,52 +473,61 @@ int main()
     GLint viewLineaLoc = glGetUniformLocation(shaderLinea, "view");
     GLint colorLineaLoc = glGetUniformLocation(shaderLinea, "color");
 
-    float tiempoAnterior = (float)glfwGetTime();
-
+    float tiempoAnterior = (float)glfwGetTime();// para calcular dt (tiempo entre frames)
+    //CICLO PRINCIPAL(cada vuelta = 1 frame)
     while (!glfwWindowShouldClose(window))
     {
+        //Tiempo y teclado
         float tiempo = (float)glfwGetTime();
         float dt = tiempo - tiempoAnterior;
         tiempoAnterior = tiempo;
 
-        procesarTeclado(window, dt);
+        procesarTeclado(window, dt);//Limpiar la pantalla
 
         glClearColor(0.07f, 0.13f, 0.17f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // Camara orbital alrededor de "objetivo" (que se mueve con el teclado)
+        // La posicion se calcula con coordenadas esfericas: yaw, pitch y distancia
         glm::vec3 camaraPos = objetivo + distancia * glm::vec3(
-            cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw));
+            cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw));// MATRIZ DE VISTA: lookAt(desde donde mira, hacia donde mira, cual es "arriba")
         glm::mat4 view = glm::lookAt(camaraPos, objetivo, glm::vec3(0.0f, 1.0f, 0.0f));
 
         // Posicion de Mario sobre la curva (ida y vuelta)
+         // "ciclo" va de 0 a 2: de 0 a 1 es la ida y de 1 a 2 la vuelta
         float ciclo = fmod(tiempo / duracionRecorrido, 2.0f);
         float t = (ciclo < 1.0f) ? ciclo : 2.0f - ciclo;
         float sentido = (ciclo < 1.0f) ? 1.0f : -1.0f;
         glm::vec3 tangente = tangenteBezier(t) * sentido;
         float angulo = atan2(tangente.x, tangente.z);
-
+        // MATRIZ DE MOVIMIENTO = traslacion al punto de la curva * rotacion
         glm::mat4 movimiento = glm::translate(glm::mat4(1.0f), puntoBezier(t) + glm::vec3(0.0f, 1.0f, 0.0f))
             * glm::rotate(glm::mat4(1.0f), angulo + giroExtra, glm::vec3(0.0f, 1.0f, 0.0f));
 
         // Dibujar a Mario
         glUseProgram(shaderProgram);
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));// se usan los shaders de Mario (con Phong)
         glUniform3fv(viewPosLoc, 1, glm::value_ptr(camaraPos));
         glActiveTexture(GL_TEXTURE0);
-
+        // Cada parte de Mario se dibuja por separado
         for (const Malla& m : mallas)
         {
+            // MATRIZ MODEL de esta parte (se lee de derecha a izquierda):
+              //1) m.transform = posicion de la parte dentro del modelo
+        //   2) ajusteModelo = centrar y escalar el modelo
+        //   3) movimiento = llevarlo a la curva y girarlo
             glm::mat4 modelMalla = movimiento * ajusteModelo * m.transform;
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelMalla));
             glUniform4fv(colorLoc, 1, glm::value_ptr(m.color));
             glBindTexture(GL_TEXTURE_2D, m.textura);
             glBindVertexArray(m.VAO);
             glDrawElements(GL_TRIANGLES, m.numIndices, GL_UNSIGNED_INT, 0);
+            // dibuja los triangulos
         }
 
         // Dibujar la curva de Bezier, su poligono de control y los puntos
-        glUseProgram(shaderLinea);
+      
+        glUseProgram(shaderLinea);// ahora se usan los shaders de lineas
         glUniformMatrix4fv(viewLineaLoc, 1, GL_FALSE, glm::value_ptr(view));
 
         glUniform3f(colorLineaLoc, 0.2f, 1.0f, 0.3f); // curva (verde)
@@ -523,11 +540,13 @@ int main()
 
         glUniform3f(colorLineaLoc, 1.0f, 0.9f, 0.1f); // puntos de control (amarillo)
         glDrawArrays(GL_POINTS, 0, 4);
-
+        //Mostrar el frame
+        // Se dibuja en un buffer trasero y luego se intercambia con el delantero,
+        // asi nunca se ve el dibujo a medias
         glfwSwapBuffers(window);
-        glfwPollEvents();
+        glfwPollEvents();// procesa teclado y mouse (sin esto la ventana se congela)
     }
-
+    //LIMPIEZA al cerrar el programa
     for (const Malla& m : mallas)
     {
         glDeleteVertexArrays(1, &m.VAO);
