@@ -42,8 +42,6 @@ Módulos del programa:
 4. Curva de Bézier: curva cúbica con 4 puntos de control. Mario recorre la curva de ida y vuelta, y su rotación se calcula con la tangente de la curva.
 5. Ciclo principal: en cada frame lee el teclado, actualiza la cámara, mueve a Mario, dibuja el modelo y después la curva con sus puntos de control.
 
-Cómo ejecutarlo
+En conclusion:
 
-1. Abrir el proyecto en Visual Studio (x64).
-2. Poner Mario.glb y la carpeta shaders en el directorio de trabajo (Proyecto, Propiedades, Depuración, Directorio de trabajo = $(ProjectDir)).
-3. Ejecutar con el depurador local de Windows.
+Mi proyecto está desarrollado en C++ utilizando principalmente programación estructurada o procedimental. Organicé el código mediante funciones para separar las tareas, como la carga del modelo 3D, el procesamiento de sus mallas, el control de la cámara, la lectura del teclado y el cálculo de la curva de Bézier. También utilicé una estructura llamada Malla para agrupar los atributos de cada parte del modelo. Además, aproveché clases y estructuras de bibliotecas externas como GLM, GLFW y TinyGLTF. No implementé clases propias, por lo que no es un proyecto basado principalmente en programación orientada a objetos
